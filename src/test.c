@@ -65,8 +65,8 @@ int main(void) {
       pl_ai_arrange(lo, deck + PL_HAND_SIZE, &arr[PL_HOUSE]);
       PlMatch m;
       pl_match_init(&m, &arr[PL_PLAYER], &arr[PL_HOUSE],
-                    pl_ai_predict(hi, &arr[PL_PLAYER], &arr[PL_HOUSE]),
-                    pl_ai_predict(lo, &arr[PL_HOUSE], &arr[PL_PLAYER]), 200,
+                    pl_ai_predict(hi, &arr[PL_PLAYER]),
+                    pl_ai_predict(lo, &arr[PL_HOUSE]), 200,
                     g % 2 ? PL_PLAYER : PL_HOUSE);
       while (m.state == PL_MATCH_ACTIVE) {
         int p, h;

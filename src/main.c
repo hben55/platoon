@@ -43,13 +43,18 @@ static void print_pile(const PlPile *p) {
   if (info.has_wizard) printf(", Wizard");
 }
 
-static void print_piles(const char *title, const PlMatch *m, PlSide side) {
+/* The house's piles stay face down until they fight, unless reveal_all. */
+static void print_piles(const char *title, const PlMatch *m, PlSide side, bool reveal_all) {
   printf("%s\n", title);
   for (int i = 0; i < PL_NUM_PILES; i++) {
     printf("  %d) ", i + 1);
-    print_pile(&m->arr[side].piles[i]);
+    const PlPile *p = &m->arr[side].piles[i];
+    if (side == PL_PLAYER || m->used[side][i] || reveal_all)
+      print_pile(p);
+    else
+      printf("%-18s %d card%s", "(face down)", p->count, p->count == 1 ? "" : "s");
     if (m->used[side][i]) printf("  [fought]");
-    if (side == PL_PLAYER && i == m->predicted[PL_PLAYER]) printf("  <- predicted");
+    if (i == m->predicted[side]) printf(side == PL_PLAYER ? "  <- your pick" : "  <- house pick");
     printf("\n");
   }
 }
@@ -142,9 +147,9 @@ static bool play_round(int *wager) {
   pl_ai_arrange(difficulty, deck + PL_HAND_SIZE, &house);
 
   PlMatch m;
-  pl_match_init(&m, &mine, &house, 0, pl_ai_predict(difficulty, &house, &mine), *wager, PL_PLAYER);
-  print_piles("\nHouse piles:", &m, PL_HOUSE);
-  print_piles("Your piles:", &m, PL_PLAYER);
+  pl_match_init(&m, &mine, &house, -1, pl_ai_predict(difficulty, &house), *wager, PL_PLAYER);
+  print_piles("\nHouse piles:", &m, PL_HOUSE, false);
+  print_piles("Your piles:", &m, PL_PLAYER, false);
   m.predicted[PL_PLAYER] = ask_pile("Which of your piles will win? (1-5) ");
   m.turn = draw_first(deck + 2 * PL_HAND_SIZE);
 
@@ -152,8 +157,8 @@ static bool play_round(int *wager) {
     printf("\n--- Battle %d | wager %d | wins %d/%d, losses+ties %d/%d ---\n",
            m.battles + 1, m.wager, m.wins, PL_WINS_NEEDED, m.losses,
            PL_LOSSES_NEEDED);
-    print_piles("House piles:", &m, PL_HOUSE);
-    print_piles("Your piles:", &m, PL_PLAYER);
+    print_piles("House piles:", &m, PL_HOUSE, false);
+    print_piles("Your piles:", &m, PL_PLAYER, false);
 
     int p, h;
     if (m.turn == PL_PLAYER) {
@@ -168,6 +173,9 @@ static bool play_round(int *wager) {
       printf("One of those piles has already fought.\n");
       continue;
     }
+    printf("The house turns over pile %d: ", h + 1);
+    print_pile(&m.arr[PL_HOUSE].piles[h]);
+    printf("\n");
     if (r.swapped) printf("A Wizard swaps the piles!\n");
     printf("Your pile %d vs house pile %d: %s\n", p + 1, h + 1,
            r.winner == PL_PLAYER ? "you win" :
@@ -175,6 +183,7 @@ static bool play_round(int *wager) {
     if (r.wager_after != r.wager_before)
       printf("Wager %d -> %d\n", r.wager_before, r.wager_after);
   }
+  print_piles("\nThe house's piles were:", &m, PL_HOUSE, true);
   *wager = m.wager;
   return m.state == PL_MATCH_WON;
 }

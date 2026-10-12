@@ -263,8 +263,9 @@ static double pile_strength(const PlPile *p, const PlPile *opp, int n) {
 #define HARD_CANDIDATES 1500
 #define HARD_OPPONENTS 30
 
-static void arrange_hard(const PlCard hand[PL_HAND_SIZE], PlArrangement *out) {
-  /* Sample hands the opponent could hold, from the cards we don't have. */
+/* Random piles an opponent might hold, made from the cards not in `hand`. */
+static void sample_opponent_piles(const PlCard hand[PL_HAND_SIZE],
+                                  PlPile opp[HARD_OPPONENTS * PL_NUM_PILES]) {
   PlCard deck[PL_DECK_SIZE], rest[PL_DECK_SIZE];
   int n = 0;
   pl_deck_fill(deck);
@@ -274,13 +275,17 @@ static void arrange_hard(const PlCard hand[PL_HAND_SIZE], PlArrangement *out) {
       if (hand[j].rank == deck[i].rank && hand[j].suit == deck[i].suit) mine = true;
     if (!mine) rest[n++] = deck[i];
   }
-  PlPile opp[HARD_OPPONENTS * PL_NUM_PILES];
   for (int o = 0; o < HARD_OPPONENTS; o++) {
     PlArrangement a;
     shuffle_cards(rest, n);
     arrange_random(rest, &a);
     memcpy(&opp[o * PL_NUM_PILES], a.piles, sizeof a.piles);
   }
+}
+
+static void arrange_hard(const PlCard hand[PL_HAND_SIZE], PlArrangement *out) {
+  PlPile opp[HARD_OPPONENTS * PL_NUM_PILES];
+  sample_opponent_piles(hand, opp);
 
   /* A set is won with 3 of 5 battles, so favor three strong piles. */
   double best = -1;
@@ -316,16 +321,70 @@ void pl_ai_arrange(PlDifficulty d, const PlCard hand[PL_HAND_SIZE],
   else arrange_hard(hand, out);
 }
 
-int pl_ai_predict(PlDifficulty d, const PlArrangement *own,
-                  const PlArrangement *opponent) {
+int pl_ai_predict(PlDifficulty d, const PlArrangement *own) {
   if (d != PL_HARD) return rand() % PL_NUM_PILES;
+  /* The opponent's piles are hidden, so rate each pile against guesses. */
+  PlCard hand[PL_HAND_SIZE];
+  int n = 0;
+  for (int p = 0; p < PL_NUM_PILES; p++)
+    for (int k = 0; k < own->piles[p].count && n < PL_HAND_SIZE; k++)
+      hand[n++] = own->piles[p].cards[k];
+  PlPile opp[HARD_OPPONENTS * PL_NUM_PILES];
+  sample_opponent_piles(hand, opp);
   int best = 0;
   double best_score = -1;
   for (int i = 0; i < PL_NUM_PILES; i++) {
-    double s = pile_strength(&own->piles[i], opponent->piles, PL_NUM_PILES);
+    double s = pile_strength(&own->piles[i], opp, HARD_OPPONENTS * PL_NUM_PILES);
     if (s > best_score) { best_score = s; best = i; }
   }
   return best;
+}
+
+/* ---- what the AI may know during battles ----
+ * A side sees its own piles, the opponent's piles that have already fought,
+ * and how many cards the opponent's other piles hold. Medium and Hard fill
+ * those hidden piles with random unseen cards many times over and average
+ * their judgement across the guesses. */
+
+#define MEDIUM_SAMPLES 40
+#define HARD_SAMPLES 60
+
+static bool same_card(PlCard a, PlCard b) { return a.rank == b.rank && a.suit == b.suit; }
+
+static bool pile_has(const PlPile *p, PlCard c) {
+  for (int k = 0; k < p->count; k++)
+    if (same_card(p->cards[k], c)) return true;
+  return false;
+}
+
+/* Cards `side` hasn't seen: not in its hand, not in a revealed opposing pile. */
+static int unseen_cards(const PlMatch *m, PlSide side, PlCard out[PL_DECK_SIZE]) {
+  PlSide opp = side == PL_PLAYER ? PL_HOUSE : PL_PLAYER;
+  PlCard deck[PL_DECK_SIZE];
+  pl_deck_fill(deck);
+  int n = 0;
+  for (int i = 0; i < PL_DECK_SIZE; i++) {
+    bool known = false;
+    for (int p = 0; p < PL_NUM_PILES && !known; p++)
+      known = pile_has(&m->arr[side].piles[p], deck[i]) ||
+              (m->used[opp][p] && pile_has(&m->arr[opp].piles[p], deck[i]));
+    if (!known) out[n++] = deck[i];
+  }
+  return n;
+}
+
+/* A guess at both arrangements: hidden opposing piles get random unseen cards. */
+static void guess_world(const PlMatch *m, PlSide side, PlCard *pool, int n,
+                        PlArrangement world[2]) {
+  PlSide opp = side == PL_PLAYER ? PL_HOUSE : PL_PLAYER;
+  world[side] = m->arr[side];
+  world[opp] = m->arr[opp];
+  shuffle_cards(pool, n);
+  int next = 0;
+  for (int p = 0; p < PL_NUM_PILES; p++)
+    if (!m->used[opp][p])
+      for (int k = 0; k < world[opp].piles[p].count && next < n; k++)
+        world[opp].piles[p].cards[k] = pool[next++];
 }
 
 /* Exhaustive search of the remaining battles. Values are from `me`'s side. */
@@ -370,39 +429,54 @@ static int search(const Search *s, unsigned used_p, unsigned used_h, int wins,
 
 void pl_ai_choose_battle(PlDifficulty d, const PlMatch *m, PlSide side,
                          int *player_pile, int *house_pile) {
-  Search s = {{{0}}, side, m->predicted[side]};
-  for (int p = 0; p < PL_NUM_PILES; p++)
-    for (int h = 0; h < PL_NUM_PILES; h++)
-      s.res[p][h] = (signed char)pl_compare_piles(
-          &m->arr[PL_PLAYER].piles[p], &m->arr[PL_HOUSE].piles[h], NULL);
   unsigned used_p = 0, used_h = 0;
   for (int i = 0; i < PL_NUM_PILES; i++) {
     if (m->used[PL_PLAYER][i]) used_p |= 1u << i;
     if (m->used[PL_HOUSE][i]) used_h |= 1u << i;
   }
 
-  int best_score = -1000000, ties = 0;
+  double score[PL_NUM_PILES][PL_NUM_PILES] = {{0}};
+  if (d != PL_EASY) {
+    PlCard pool[PL_DECK_SIZE];
+    int n = unseen_cards(m, side, pool);
+    int samples = d == PL_MEDIUM ? MEDIUM_SAMPLES : HARD_SAMPLES;
+    for (int t = 0; t < samples; t++) {
+      PlArrangement world[2];
+      guess_world(m, side, pool, n, world);
+      Search s = {{{0}}, side, m->predicted[side]};
+      for (int p = 0; p < PL_NUM_PILES; p++)
+        for (int h = 0; h < PL_NUM_PILES; h++)
+          s.res[p][h] = (signed char)pl_compare_piles(&world[PL_PLAYER].piles[p],
+                                                      &world[PL_HOUSE].piles[h], NULL);
+      for (int p = 0; p < PL_NUM_PILES; p++) {
+        if (used_p & (1u << p)) continue;
+        for (int h = 0; h < PL_NUM_PILES; h++) {
+          if (used_h & (1u << h)) continue;
+          if (d == PL_MEDIUM) { /* likely wins, own predicted pile preferred */
+            int r = s.res[p][h];
+            bool win = side == PL_PLAYER ? r > 0 : r < 0;
+            int mine = side == PL_PLAYER ? p : h;
+            score[p][h] += win ? 1 + 0.1 * (mine == s.my_predicted) : r == 0 ? 0.5 : 0;
+          } else {
+            int w = m->wins, l = m->losses;
+            int bonus = apply(&s, p, h, &w, &l);
+            score[p][h] += search(&s, used_p | (1u << p), used_h | (1u << h), w, l,
+                                  side == PL_PLAYER ? PL_HOUSE : PL_PLAYER, 1) + bonus;
+          }
+        }
+      }
+    }
+  }
+
+  double best = -1e18;
+  int ties = 0;
   for (int h = 0; h < PL_NUM_PILES; h++) {
     if (used_h & (1u << h)) continue;
     for (int p = 0; p < PL_NUM_PILES; p++) {
       if (used_p & (1u << p)) continue;
-      int score;
-      if (d == PL_EASY) {
-        score = 0;
-      } else if (d == PL_MEDIUM) { /* any win, own predicted pile preferred */
-        int r = s.res[p][h];
-        bool win = side == PL_PLAYER ? r > 0 : r < 0;
-        int mine = side == PL_PLAYER ? p : h;
-        score = win ? 2 + (mine == s.my_predicted) : r == 0 ? 1 : 0;
-      } else {
-        int w = m->wins, l = m->losses;
-        int bonus = apply(&s, p, h, &w, &l);
-        score = search(&s, used_p | (1u << p), used_h | (1u << h), w, l,
-                       side == PL_PLAYER ? PL_HOUSE : PL_PLAYER, 1) + bonus;
-      }
-      if (score > best_score) {
-        best_score = score; *player_pile = p; *house_pile = h; ties = 1;
-      } else if (score == best_score && rand() % ++ties == 0) {
+      if (score[p][h] > best + 1e-9) {
+        best = score[p][h]; *player_pile = p; *house_pile = h; ties = 1;
+      } else if (score[p][h] > best - 1e-9 && rand() % ++ties == 0) {
         *player_pile = p; *house_pile = h;
       }
     }

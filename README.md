@@ -34,6 +34,11 @@ a Bishop counts as a plain number pile.
 
 ### Predictions and battles
 
+The house's piles are dealt face down: you can see how many cards each one
+holds, but not what they are. A house pile only turns over when it fights, and
+any piles left at the end of the round are revealed then. The house plays by
+the same rule and never sees your unrevealed piles either.
+
 Once the piles are set, you pick the pile you think will win, and the house
 picks one of its own. A card draw decides who goes first. Then the two sides
 take turns choosing one of their piles and one of the opponent's to fight.
@@ -61,7 +66,8 @@ that point, a bonus 7th round opens.
   single cards.
 - On Medium, the house always lays its piles out in a fixed order from left to
   right: Wizard+Bishop, Bishop, Wizard+King, King, Wizard+numbers, numbers.
-  Once you see an all-number pile, everything to its right is numbers too.
+  Once one of its piles turns over to show only number cards, everything to
+  its right is numbers too.
   Hard shuffles its pile order and plans every battle ahead.
 
 The rules and tips are based on the GameFAQs *Platoon FAQ* by SoopaSte123
@@ -71,9 +77,13 @@ The rules and tips are based on the GameFAQs *Platoon FAQ* by SoopaSte123
 
 - **Easy:** random piles, a random prediction and random battles.
 - **Medium:** plays like the dealer in the real game, using the FAQ's pile
-  order, and takes any battle it can win.
+  order, and takes the battle it is most likely to win.
 - **Hard:** picks a strong arrangement in a random order, predicts its best
   pile, and searches every remaining battle order before each move.
+
+The AI only knows what you would know: its own piles, your piles that have
+fought, and how many cards your other piles hold. Medium and Hard guess the
+hidden cards from the ones they haven't seen.
 
 ## Build and play
 

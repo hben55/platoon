@@ -262,7 +262,10 @@ static bool card_target(int i, Rectangle *r) {
   int h = i - PL_HAND_SIZE, p = g.house_pile[h];
   *r = stacked_card(PL_HOUSE, p, g.house_slot[h], g.house.piles[p].count);
   if (pile_in_battle(PL_HOUSE, p)) r->y += BATTLE_SHIFT;
-  return g.screen >= SCR_PREDICT;
+  /* The house's piles stay face down until they fight (or the round ends). */
+  if (g.screen == SCR_ROUND_END) return true;
+  if (g.screen != SCR_BATTLE) return false;
+  return g.match.used[PL_HOUSE][p] || (g.phase >= BT_CLASH && g.pick[PL_HOUSE] == p);
 }
 
 static void update_cards(float dt) {
@@ -370,16 +373,13 @@ static void clear_piles(void) {
 static void confirm_arrangement(void) {
   build_arrangement(&g.mine);
   g.selected = g.hover = -1;
-  /* Turn the house's piles over one after another. */
-  for (int h = 0; h < PL_HAND_SIZE; h++)
-    g.vis[PL_HAND_SIZE + h].flip_delay = 0.15f + g.house_pile[h] * 0.16f + g.house_slot[h] * 0.05f;
   g.screen = SCR_PREDICT;
   g.timer = 0;
 }
 
 static void choose_prediction(int pile) {
   au_play(SND_PLACE);
-  int house_pick = pl_ai_predict(g.difficulty, &g.house, &g.mine);
+  int house_pick = pl_ai_predict(g.difficulty, &g.house);
   /* Draw from the undealt cards for the first turn; equal ranks redraw. */
   int i = NCARDS;
   g.draw_ties = 0;
@@ -410,9 +410,9 @@ static void start_battle(void) {
 
 /* The chosen piles slide together; resolve_battle runs when they meet. */
 static void fight(void) {
-  g.phase = BT_CLASH;
+  g.phase = BT_CLASH; /* the house's pile turns over as they meet */
   g.timer = 0;
-  au_play(SND_DEAL);
+  au_play(SND_FLIP);
 }
 
 static void resolve_battle(void) {
@@ -434,6 +434,10 @@ static void finish_round(void) {
   g.wager = g.match.wager;
   if (g.round_won) g.wager = g.wager > MAX_CHIPS / 2 ? MAX_CHIPS : g.wager * 2;
   au_play(g.round_won ? SND_ROUND_WIN : SND_ROUND_LOSE);
+  /* Turn over the house's piles that never fought, one after another. */
+  for (int h = 0; h < PL_HAND_SIZE; h++)
+    if (!g.match.used[PL_HOUSE][g.house_pile[h]])
+      g.vis[PL_HAND_SIZE + h].flip_delay = 0.4f + g.house_pile[h] * 0.15f + g.house_slot[h] * 0.04f;
   g.screen = SCR_ROUND_END;
   g.timer = 0;
 }
@@ -528,7 +532,7 @@ static void update_arrange(void) {
 
 static void update_predict(void) {
   if (g.demo) {
-    if (g.timer > 1.6f) choose_prediction(pl_ai_predict(PL_HARD, &g.mine, &g.house));
+    if (g.timer > 1.6f) choose_prediction(pl_ai_predict(PL_HARD, &g.mine));
     return;
   }
   int p = clicked() ? slot_at(PL_PLAYER, gd_mouse, 0) : -1;
@@ -779,8 +783,13 @@ static void draw_table(void) {
     for (int i = 0; i < PL_NUM_PILES; i++) {
       Rectangle s = slot_rect(side, i);
       if (side == PL_PLAYER) draw_caption(side, i, &mine.piles[i]);
-      else if (g.screen >= SCR_PREDICT && house_pile_shown(i))
+      else if (house_pile_shown(i))
         draw_caption(side, i, &g.house.piles[i]);
+      else {
+        int n = g.house.piles[i].count;
+        gd_text(TextFormat("%d card%s", n, n == 1 ? "" : "s"), s.x + s.width / 2, s.y - 22,
+                16, Fade(GD_CREAM, 0.6f), ALIGN_CENTER, false);
+      }
       bool used = battling && g.match.used[side][i];
       bool fighting = g.pick[side] == i && g.phase == BT_RESULT;
       if (used && !fighting) DrawRectangleRounded(s, 0.08f, 8, Fade(BLACK, 0.4f));

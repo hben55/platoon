@@ -40,8 +40,10 @@ bool help_draw(void) {
        "grows by half. The house picks one too: each time its pick wins, your "
        "wager is halved."},
       {"BATTLE",
-       "A card draw decides who starts, then you take turns. On your turn, click "
-       "one of your piles and then a house pile. Every pile fights once."},
+       "The house's piles stay face down; you only see how many cards each "
+       "holds. A card draw decides who starts, then you take turns. On your "
+       "turn, click one of your piles and then a house pile. Every pile fights "
+       "once, and a house pile turns over when it fights."},
       {"ROUNDS AND CHIPS",
        "A set costs 200 chips. Winning a round doubles the wager. Let it ride into "
        "the next round, or take the chips. After 6 straight wins the table pays "

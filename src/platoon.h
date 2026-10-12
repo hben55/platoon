@@ -73,7 +73,7 @@ typedef enum { PL_MATCH_ACTIVE, PL_MATCH_WON, PL_MATCH_LOST } PlMatchState;
 typedef struct {
   PlArrangement arr[2]; /* indexed by PlSide */
   int predicted[2];     /* pile each side thinks will win */
-  bool used[2][PL_NUM_PILES];
+  bool used[2][PL_NUM_PILES]; /* a pile's cards are revealed once it has fought */
   int wager;
   int wins;   /* the player's wins */
   int losses; /* the player's losses and ties */
@@ -98,23 +98,25 @@ bool pl_match_battle(PlMatch *m, int player_pile, int house_pile,
                      PlBattleResult *result);
 
 /* ---- the AI ----
+ * Like a human player, the AI sees only its own piles, the opposing piles that
+ * have already fought, and how many cards the other opposing piles hold.
  * EASY:   random piles, random prediction, random battles.
  * MEDIUM: arranges like the FAQ describes (Wizard+Bishop, Bishop, Wizard+King,
  *         King, Wizard+Number, Number from left to right), random prediction,
- *         and takes any battle it can win.
+ *         and takes the battle it is most likely to win, guessing the hidden
+ *         piles from the cards it hasn't seen.
  * HARD:   scores many random arrangements and keeps the best one in a random
- *         pile order, predicts its pile that beats the most of yours, and
- *         searches every remaining battle order (like a chess engine).
- * The AI sees both sides' piles, as in the real game. It can play either side.
+ *         pile order, predicts its strongest pile, and searches every remaining
+ *         battle order (like a chess engine) across many guesses of the hidden
+ *         piles. It can play either side.
  */
 typedef enum { PL_EASY, PL_MEDIUM, PL_HARD } PlDifficulty;
 
 const char *pl_difficulty_name(PlDifficulty d);
 void pl_ai_arrange(PlDifficulty d, const PlCard hand[PL_HAND_SIZE],
                    PlArrangement *out);
-/* Which of `own`'s piles the AI predicts will win, given the opponent's piles. */
-int pl_ai_predict(PlDifficulty d, const PlArrangement *own,
-                  const PlArrangement *opponent);
+/* Which of `own`'s piles the AI predicts will win. */
+int pl_ai_predict(PlDifficulty d, const PlArrangement *own);
 /* Picks a battle for `side`; both piles come back unused. */
 void pl_ai_choose_battle(PlDifficulty d, const PlMatch *m, PlSide side,
                          int *player_pile, int *house_pile);

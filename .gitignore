@@ -68,3 +68,5 @@ Testing/
 .cache/
 platoon
 test_platoon
+platoon-gui
+vendor/

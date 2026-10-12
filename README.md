@@ -6,8 +6,20 @@ Platoon card game from Ni no Kuni: Wrath of the White Witch
 ```
 make platoon-gui   # graphical game (fetches and builds raylib 5.5 on first run)
 make platoon       # terminal game
+make web           # browser build in web/ (fetches the Emscripten SDK on first run)
 make test          # checks the battle rules and AI difficulties
 ```
+
+The browser build needs a web server, since browsers won't load WebAssembly
+from a file. Any static server works, for example:
+
+```
+python3 -m http.server 8000 --directory web
+```
+
+and then open http://localhost:8000. The first `make web` downloads the
+Emscripten SDK (about 1.4 GB) into `vendor/emsdk`; nothing is installed
+system-wide.
 
 The graphical version needs the X11 and OpenGL headers on Linux:
 
@@ -34,6 +46,7 @@ the sound effects are synthesised in code, so there are no audio files.
   `src/gui_help.[ch]`: the rules screen;
   `src/gui_input.[ch]`: input layer that a test script can drive.
 - `assets/fonts`: DejaVu Sans (see `LICENSE-DejaVu.txt`), used by the GUI.
+- `src/web_shell.html`: the page that hosts the browser build.
 - `src/test.c`: rule and AI tests.
 
 The house AI has Easy, Medium and Hard difficulties (see `platoon.h`).

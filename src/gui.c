@@ -1108,7 +1108,24 @@ static void approach(float *shown, int real, float dt) {
 
 static void play_click(void) { au_play(SND_CLICK); }
 
+#if defined(PLATFORM_WEB)
+/* Fits the canvas to the page. raylib's own resize handling leaves GLFW's idea
+ * of the window size stale, which skews the mouse, so go through SetWindowSize. */
+static void fit_canvas(void) {
+  static int last_w, last_h;
+  int w = emscripten_run_script_int("window.innerWidth");
+  int h = emscripten_run_script_int("window.innerHeight");
+  if (w == last_w && h == last_h) return;
+  SetWindowSize(w, h);
+  last_w = w;
+  last_h = h;
+}
+#endif
+
 static void frame(void) {
+#if defined(PLATFORM_WEB)
+  fit_canvas();
+#endif
   float dt = fminf(GetFrameTime(), 0.1f);
   g.dt = dt;
   float scale = fminf(GetScreenWidth() / (float)VW, GetScreenHeight() / (float)VH);
@@ -1118,7 +1135,9 @@ static void frame(void) {
   in_frame(dt, GetScreenToWorld2D(GetMousePosition(), cam));
   gd_mouse = in_mouse();
   if (in_quit()) g.quit = true;
+#if !defined(PLATFORM_WEB)
   if (IsKeyPressed(KEY_F11)) ToggleBorderlessWindowed();
+#endif
   if (in_key(KEY_M)) au_toggle_mute();
 
   if (g.help) {
@@ -1133,7 +1152,9 @@ static void frame(void) {
   approach(&g.shown_chips, g.chips, dt);
 
   BeginDrawing();
-  ClearBackground(BLACK);
+  ClearBackground(GD_FELT_DARK); /* the bars around a letterboxed table */
+  BeginScissorMode((int)cam.offset.x, (int)cam.offset.y, (int)ceilf(VW * scale),
+                   (int)ceilf(VH * scale));
   BeginMode2D(cam);
   gd_begin_frame();
   if (g.help) {
@@ -1146,6 +1167,7 @@ static void frame(void) {
     draw();
   }
   EndMode2D();
+  EndScissorMode();
   if (shots) {
     /* Scripts name their shots; otherwise take one after each screen change. */
     const char *name = in_shot();
@@ -1168,11 +1190,16 @@ int main(int argc, char **argv) {
   srand(seed ? (unsigned)atoi(seed) : (unsigned)time(NULL));
   in_init();
 
+#if defined(PLATFORM_WEB)
+  SetConfigFlags(FLAG_MSAA_4X_HINT); /* fit_canvas handles page resizes */
+#else
   SetConfigFlags(FLAG_WINDOW_RESIZABLE | FLAG_MSAA_4X_HINT | FLAG_VSYNC_HINT);
+#endif
   SetTraceLogLevel(LOG_WARNING);
   InitWindow(VW, VH, "Platoon");
   SetWindowMinSize(VW / 2, VH / 2);
   SetExitKey(KEY_NULL);
+  in_attach();
   gd_load();
   au_init();
   gd_click_hook = play_click;

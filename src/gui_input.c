@@ -1,5 +1,6 @@
 #include "gui_input.h"
 
+#include <GLFW/glfw3.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -32,6 +33,21 @@ static Vector2 mouse;
 static bool down[3], pressed[3], released[3];
 static int key_pressed;
 static char shot[64];
+
+/* raylib only compares button states between frames, so a click whose press
+ * and release land in the same frame (a quick touchpad tap) would be lost.
+ * This GLFW callback counts every press and release, then hands the event on
+ * to raylib's own callback. */
+static GLFWmousebuttonfun raylib_mouse_callback;
+static int latched_press[3], latched_release[3];
+
+static void mouse_callback(GLFWwindow *window, int button, int action, int mods) {
+  if (button >= 0 && button < 3) {
+    if (action == GLFW_PRESS) latched_press[button]++;
+    else latched_release[button]++;
+  }
+  if (raylib_mouse_callback) raylib_mouse_callback(window, button, action, mods);
+}
 
 static Op *push(OpKind kind) {
   if (op_count == op_cap) {
@@ -115,14 +131,32 @@ static void load(const char *path) {
 
 void in_init(void) {
   const char *path = getenv("PLATOON_SCRIPT");
-  if (!path) return;
-  scripted = true;
-  load(path);
+  if (path) {
+    scripted = true;
+    load(path);
+  }
+}
+
+static bool attached;
+
+void in_attach(void) {
+  /* raylib's GetWindowHandle returns NULL on the web; its window is the
+   * current GLFW context on every platform. */
+  GLFWwindow *window = glfwGetCurrentContext();
+  if (!window) return;
+  raylib_mouse_callback = glfwSetMouseButtonCallback(window, mouse_callback);
+  attached = true;
 }
 
 void in_frame(float dt, Vector2 real_mouse) {
   if (!scripted) {
     mouse = real_mouse;
+    for (int b = 0; b < 3; b++) {
+      pressed[b] = attached ? latched_press[b] > 0 : IsMouseButtonPressed(b);
+      released[b] = attached ? latched_release[b] > 0 : IsMouseButtonReleased(b);
+      down[b] = IsMouseButtonDown(b) || (pressed[b] && !released[b]);
+      latched_press[b] = latched_release[b] = 0;
+    }
     return;
   }
   memset(pressed, 0, sizeof pressed);
@@ -151,9 +185,9 @@ void in_frame(float dt, Vector2 real_mouse) {
 
 bool in_scripted(void) { return scripted; }
 Vector2 in_mouse(void) { return mouse; }
-bool in_pressed(int button) { return scripted ? pressed[button] : IsMouseButtonPressed(button); }
-bool in_down(int button) { return scripted ? down[button] : IsMouseButtonDown(button); }
-bool in_released(int button) { return scripted ? released[button] : IsMouseButtonReleased(button); }
+bool in_pressed(int button) { return button < 3 && pressed[button]; }
+bool in_down(int button) { return button < 3 && down[button]; }
+bool in_released(int button) { return button < 3 && released[button]; }
 bool in_key(int key) { return scripted ? key_pressed == key : IsKeyPressed(key); }
 const char *in_shot(void) { return shot[0] ? shot : NULL; }
 bool in_quit(void) { return quit; }

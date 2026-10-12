@@ -13,6 +13,8 @@
 
 /* Loads PLATOON_SCRIPT if set. */
 void in_init(void);
+/* Hooks the mouse buttons; call after InitWindow. */
+void in_attach(void);
 /* Call once per frame with the real mouse position (virtual coordinates). */
 void in_frame(float dt, Vector2 real_mouse);
 bool in_scripted(void);

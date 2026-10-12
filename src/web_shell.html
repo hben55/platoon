@@ -1,0 +1,46 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Platoon</title>
+<style>
+  html, body { margin: 0; height: 100%; background: #0e3e2a; overflow: hidden; }
+  canvas { display: block; outline: none; touch-action: none; }
+  #status {
+    position: fixed; inset: 0; display: flex; align-items: center; justify-content: center;
+    color: #f6f0de; font: 600 20px system-ui, sans-serif; pointer-events: none;
+  }
+</style>
+</head>
+<body>
+<canvas id="canvas" tabindex="-1"></canvas>
+<div id="status">Loading Platoon...</div>
+<script>
+  var canvas = document.getElementById('canvas');
+  var statusEl = document.getElementById('status');
+  // Right-click returns a card to your hand, so keep the browser menu away.
+  canvas.addEventListener('contextmenu', function (e) { e.preventDefault(); });
+  canvas.addEventListener('pointerdown', function () { canvas.focus(); });
+  // The game only learns where the mouse is from mousemove events, so send one
+  // at the click point first; otherwise a click with no move before it lands
+  // wherever the mouse last was.
+  window.addEventListener('mousedown', function (e) {
+    if (e.target !== canvas) return;
+    canvas.dispatchEvent(new MouseEvent('mousemove', {
+      clientX: e.clientX, clientY: e.clientY, screenX: e.screenX, screenY: e.screenY,
+      bubbles: true, view: window
+    }));
+  }, true);
+  var Module = {
+    canvas: canvas,
+    setStatus: function (text) {
+      statusEl.textContent = text.replace(/\(.*\)/, '');
+      statusEl.style.display = text ? 'flex' : 'none';
+    },
+    onRuntimeInitialized: function () { canvas.focus(); }
+  };
+</script>
+{{{ SCRIPT }}}
+</body>
+</html>

@@ -22,8 +22,13 @@ static Font load_font(const char *const paths[], bool *owned) {
     if (!FileExists(paths[i])) continue;
     Font f = LoadFontEx(paths[i], 64, NULL, 0);
     if (f.texture.id == 0) continue;
+#if defined(PLATFORM_WEB)
+    /* WebGL 1 can't mipmap the font atlas (its size isn't a power of two). */
+    SetTextureFilter(f.texture, TEXTURE_FILTER_BILINEAR);
+#else
     GenTextureMipmaps(&f.texture);
     SetTextureFilter(f.texture, TEXTURE_FILTER_TRILINEAR);
+#endif
     *owned = true;
     return f;
   }

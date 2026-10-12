@@ -1,5 +1,79 @@
-# platoon
-Platoon card game from Ni no Kuni: Wrath of the White Witch
+# Platoon
+
+The Platoon casino card game from *Ni no Kuni: Wrath of the White Witch*,
+written in C. You can play it in a terminal, in a desktop window, or in the
+browser.
+
+**Play in your browser: https://hben55.github.io/platoon/**
+
+## How to play
+
+Platoon is a two-player card game: you (the challenger) against the house.
+The deck is a standard 52-card deck plus two Jokers. Aces are called
+**Bishops** and Jokers are called **Wizards**.
+
+### Building your piles
+
+You and the house are each dealt 10 cards. Split yours into 5 piles of any
+size; every card must be used. A Wizard can't sit in a pile on its own.
+
+### What each pile is worth
+
+- Number cards 2 to 10 count their face value.
+- Jacks and Queens count 10.
+- **Kings** count 10 and beat any pile made only of number cards.
+- **Bishops** (Aces) count 1. A Bishop pile loses to every pile except one with
+  a King, which it beats.
+- **Wizards** (Jokers) count 0. When one pile in a battle has a Wizard, the two
+  piles swap sides before the winner is decided. That's why a Wizard paired
+  with a low card beats a King. If both piles have a Wizard, the swaps cancel.
+
+When neither pile has a King or a Bishop, more points wins. When both have a
+King, or both have a Bishop, more points also wins. A pile with both a King and
+a Bishop counts as a plain number pile.
+
+### Predictions and battles
+
+Once the piles are set, you pick the pile you think will win, and the house
+picks one of its own. A card draw decides who goes first. Then the two sides
+take turns choosing one of their piles and one of the opponent's to fight.
+Every pile fights exactly once.
+
+- Each time **your** predicted pile wins a battle, your wager grows by half.
+- Each time **the house's** predicted pile wins a battle, your wager is halved.
+- Win **3 battles** and you win the round. Three losses or ties (a tie counts
+  against you) and you lose the round and the wager.
+
+### Chips and rounds
+
+You start with 1,000 chips, and a set costs 200. Winning a round doubles the
+wager. You can then take your winnings, or let them ride into the next round.
+After 6 straight wins the table pays out. If you hold 99,999 chips or less at
+that point, a bonus 7th round opens.
+
+### Strategy tips
+
+- Don't try to make all five piles winners. You only need three, so aim for
+  3 strong piles, 1 throwaway and 1 backup.
+- Strong piles: a Wizard with your lowest card, a lone King, or 18+ points.
+- Throwaways: a lone Bishop (which can still upset a King) or your lowest card.
+- A backup pile of 8 to 10 points is good for picking off the house's weak
+  single cards.
+- On Medium, the house always lays its piles out in a fixed order from left to
+  right: Wizard+Bishop, Bishop, Wizard+King, King, Wizard+numbers, numbers.
+  Once you see an all-number pile, everything to its right is numbers too.
+  Hard shuffles its pile order and plans every battle ahead.
+
+The rules and tips are based on the GameFAQs *Platoon FAQ* by SoopaSte123
+(2013), with thanks to Nooope, bmf4ever and carl8000, whom it credits.
+
+## House difficulty
+
+- **Easy:** random piles, a random prediction and random battles.
+- **Medium:** plays like the dealer in the real game, using the FAQ's pile
+  order, and takes any battle it can win.
+- **Hard:** picks a strong arrangement in a random order, predicts its best
+  pile, and searches every remaining battle order before each move.
 
 ## Build and play
 
@@ -20,6 +94,9 @@ python3 -m http.server 8000 --directory web
 and then open http://localhost:8000. The first `make web` downloads the
 Emscripten SDK (about 1.4 GB) into `vendor/emsdk`; nothing is installed
 system-wide.
+
+The hosted copy is published from the `gh-pages` branch: `make deploy` rebuilds
+`web/` and pushes it there.
 
 The graphical version needs the X11 and OpenGL headers on Linux:
 
@@ -48,8 +125,6 @@ the sound effects are synthesised in code, so there are no audio files.
 - `assets/fonts`: DejaVu Sans (see `LICENSE-DejaVu.txt`), used by the GUI.
 - `src/web_shell.html`: the page that hosts the browser build.
 - `src/test.c`: rule and AI tests.
-
-The house AI has Easy, Medium and Hard difficulties (see `platoon.h`).
 
 ## Testing the GUI
 

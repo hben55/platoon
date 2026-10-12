@@ -57,6 +57,24 @@ web/index.html: $(GUI_SRC) $(GUI_HDR) src/web_shell.html $(RAYLIB_WEB_LIB)
 test: src/test.c src/platoon.c src/platoon.h
 	$(CC) $(CFLAGS) -o test_platoon src/test.c src/platoon.c && ./test_platoon
 
+# Publishes web/ to the gh-pages branch (served by GitHub Pages).
+deploy: web
+	rm -rf vendor/gh-pages
+	git worktree prune
+	git fetch origin gh-pages 2>/dev/null || true
+	if git rev-parse --verify -q origin/gh-pages >/dev/null; then \
+	  git worktree add -B gh-pages vendor/gh-pages origin/gh-pages; \
+	else \
+	  git worktree add --detach vendor/gh-pages && git -C vendor/gh-pages checkout --orphan gh-pages; \
+	fi
+	git -C vendor/gh-pages rm -rqf --ignore-unmatch .
+	cp web/index.html web/index.js web/index.wasm web/index.data vendor/gh-pages/
+	touch vendor/gh-pages/.nojekyll
+	git -C vendor/gh-pages add -A
+	git -C vendor/gh-pages commit -qm "Deploy browser build" || true
+	git -C vendor/gh-pages push -q origin gh-pages
+	git worktree remove --force vendor/gh-pages
+
 clean:
 	rm -f platoon platoon-gui test_platoon
 	rm -rf web
@@ -64,4 +82,4 @@ clean:
 distclean: clean
 	rm -rf vendor
 
-.PHONY: all test web clean distclean
+.PHONY: all test web deploy clean distclean

@@ -1,11 +1,15 @@
 #include "gui_draw.h"
 #include "gui_input.h"
 
+#include <math.h>
 #include <stddef.h>
+#include <stdio.h>
+#include <string.h>
 
 #include "rlgl.h"
 
 Vector2 gd_mouse;
+void (*gd_click_hook)(void);
 
 static Font font_regular, font_bold;
 static bool owns_regular, owns_bold;
@@ -28,20 +32,26 @@ static Font load_font(const char *const paths[], bool *owned) {
 }
 
 void gd_load(void) {
-  static const char *const bold[] = {
+  /* The bundled DejaVu fonts (assets/fonts) first, then common system fonts. */
+  static char app_bold[512], app_regular[512];
+  snprintf(app_bold, sizeof app_bold, "%sassets/fonts/DejaVuSans-Bold.ttf",
+           GetApplicationDirectory());
+  snprintf(app_regular, sizeof app_regular, "%sassets/fonts/DejaVuSans.ttf",
+           GetApplicationDirectory());
+  const char *const bold[] = {
+      app_bold,
+      "assets/fonts/DejaVuSans-Bold.ttf",
       "/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf",
       "/usr/share/fonts/TTF/DejaVuSans-Bold.ttf",
-      "/usr/share/fonts/dejavu/DejaVuSans-Bold.ttf",
       "/usr/share/fonts/truetype/liberation/LiberationSans-Bold.ttf",
-      "/System/Library/Fonts/Supplemental/Arial Bold.ttf",
       "C:/Windows/Fonts/arialbd.ttf",
       NULL};
-  static const char *const regular[] = {
+  const char *const regular[] = {
+      app_regular,
+      "assets/fonts/DejaVuSans.ttf",
       "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf",
       "/usr/share/fonts/TTF/DejaVuSans.ttf",
-      "/usr/share/fonts/dejavu/DejaVuSans.ttf",
       "/usr/share/fonts/truetype/liberation/LiberationSans-Regular.ttf",
-      "/System/Library/Fonts/Supplemental/Arial.ttf",
       "C:/Windows/Fonts/arial.ttf",
       NULL};
   font_bold = load_font(bold, &owns_bold);
@@ -75,6 +85,36 @@ void gd_text(const char *s, float x, float y, float size, Color c,
   if (align == ALIGN_CENTER) x -= w / 2;
   if (align == ALIGN_RIGHT) x -= w;
   DrawTextEx(f, s, (Vector2){x, y}, size, spacing, c);
+}
+
+float gd_text_wrap(const char *s, float x, float y, float width, float size,
+                   Color c, bool bold) {
+  char line[1024] = "";
+  float line_h = size * 1.3f, top = y;
+  while (*s) {
+    while (*s == ' ') s++;
+    int n = 0;
+    while (s[n] && s[n] != ' ') n++;
+    if (n == 0) break;
+    /* Try the word on the current line; start a new line if it overflows. */
+    size_t len = strlen(line);
+    if (len + n + 2 > sizeof line) n = (int)(sizeof line - len - 2);
+    if (len) line[len++] = ' ';
+    memcpy(line + len, s, n);
+    line[len + n] = '\0';
+    if (len && gd_text_width(line, size, bold) > width) {
+      line[len - 1] = '\0';
+      gd_text(line, x, y, size, c, ALIGN_LEFT, bold);
+      y += line_h;
+      memmove(line, line + len, n + 1);
+    }
+    s += n;
+  }
+  if (line[0]) {
+    gd_text(line, x, y, size, c, ALIGN_LEFT, bold);
+    y += line_h;
+  }
+  return y - top;
 }
 
 /* ---- shapes ---- */
@@ -250,7 +290,27 @@ void gd_card_rotated(PlCard c, Vector2 center, float scale, float degrees) {
   rlPopMatrix();
 }
 
+void gd_card_flip(PlCard c, Rectangle r, float face) {
+  if (face >= 1) { gd_card(c, r); return; }
+  if (face <= 0) { gd_card_back(r); return; }
+  float sx = fabsf(cosf(face * PI));
+  rlPushMatrix();
+  rlTranslatef(r.x + r.width / 2, r.y + r.height / 2, 0);
+  rlScalef(fmaxf(sx, 0.02f), 1, 1);
+  Rectangle local = {-r.width / 2, -r.height / 2, r.width, r.height};
+  if (face < 0.5f) gd_card_back(local);
+  else gd_card(c, local);
+  rlPopMatrix();
+}
+
 /* ---- widgets ---- */
+
+static bool take_click(bool hover) {
+  if (!hover || click_used || !in_pressed(MOUSE_BUTTON_LEFT)) return false;
+  click_used = true;
+  if (gd_click_hook) gd_click_hook();
+  return true;
+}
 
 bool gd_button(Rectangle r, const char *label, bool enabled) {
   bool hover = enabled && CheckCollisionPointRec(gd_mouse, r);
@@ -264,11 +324,7 @@ bool gd_button(Rectangle r, const char *label, bool enabled) {
   float size = r.height * 0.42f;
   gd_text(label, r.x + r.width / 2, r.y + (r.height - size) / 2, size, fg,
           ALIGN_CENTER, true);
-  if (hover && !click_used && in_pressed(MOUSE_BUTTON_LEFT)) {
-    click_used = true;
-    return true;
-  }
-  return false;
+  return take_click(hover);
 }
 
 bool gd_toggle(Rectangle r, const char *label, bool on) {
@@ -280,11 +336,7 @@ bool gd_toggle(Rectangle r, const char *label, bool on) {
   float size = r.height * 0.42f;
   gd_text(label, r.x + r.width / 2, r.y + (r.height - size) / 2, size, fg,
           ALIGN_CENTER, true);
-  if (hover && !click_used && in_pressed(MOUSE_BUTTON_LEFT)) {
-    click_used = true;
-    return true;
-  }
-  return false;
+  return take_click(hover);
 }
 
 void gd_panel(Rectangle r) {

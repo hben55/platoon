@@ -10,8 +10,11 @@ all: platoon platoon-gui
 platoon: src/main.c src/platoon.c src/platoon.h
 	$(CC) $(CFLAGS) -o $@ src/main.c src/platoon.c
 
-platoon-gui: src/gui.c src/gui_draw.c src/gui_draw.h src/gui_input.c src/gui_input.h src/platoon.c src/platoon.h $(RAYLIB_LIB)
-	$(CC) $(CFLAGS) -I$(RAYLIB_DIR)/src -o $@ src/gui.c src/gui_draw.c src/gui_input.c src/platoon.c $(GUI_LIBS)
+GUI_SRC = src/gui.c src/gui_draw.c src/gui_input.c src/gui_audio.c src/gui_help.c src/platoon.c
+GUI_HDR = src/gui_draw.h src/gui_input.h src/gui_audio.h src/gui_help.h src/platoon.h
+
+platoon-gui: $(GUI_SRC) $(GUI_HDR) $(RAYLIB_LIB)
+	$(CC) $(CFLAGS) -I$(RAYLIB_DIR)/src -o $@ $(GUI_SRC) $(GUI_LIBS)
 
 # raylib is fetched and built on first use; it lives in vendor/ (not committed).
 $(RAYLIB_LIB):

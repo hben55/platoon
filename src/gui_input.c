@@ -10,7 +10,7 @@
  *   click X Y             left click at X Y
  *   rclick X Y            right click at X Y
  *   drag X1 Y1 X2 Y2      press at X1 Y1, move to X2 Y2, release
- *   key K                 press a key: 0-9, SPACE, ENTER, ESCAPE
+ *   key K                 press a key: 0-9, A-Z, SPACE, ENTER, ESCAPE
  *   shot NAME             save a screenshot as NAME.png in PLATOON_SHOTS
  *   quit                  close the game
  * Each command is expanded into per-frame steps below. */
@@ -54,6 +54,7 @@ static void push_button(OpKind kind, int button) { push(kind)->arg = button; }
 
 static int parse_key(const char *s) {
   if (s[0] >= '0' && s[0] <= '9' && !s[1]) return KEY_ZERO + (s[0] - '0');
+  if (s[0] >= 'A' && s[0] <= 'Z' && !s[1]) return KEY_A + (s[0] - 'A');
   if (!strcmp(s, "SPACE")) return KEY_SPACE;
   if (!strcmp(s, "ENTER")) return KEY_ENTER;
   if (!strcmp(s, "ESCAPE")) return KEY_ESCAPE;
